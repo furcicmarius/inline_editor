@@ -7,7 +7,7 @@
 
   Drupal.ajax.prototype.getForm = function(fieldName, entityType, id) {
     var ajax = this;
-    ajax.options.url = '/inline-editor/get-ajax-form/' + fieldName + '/' + entityType + '/' + id;
+    ajax.options.url = Drupal.settings.basePath + 'inline-editor/get-ajax-form/' + fieldName + '/' + entityType + '/' + id;
     // Do not perform another ajax command if one is already in progress.
     if (ajax.ajaxing) {
       return false;
@@ -32,7 +32,7 @@
    * Define a custom ajax action not associated with an element.
    */
   var custom_settings = {};
-  custom_settings.url = '/inline-editor/get-ajax-form/';
+  custom_settings.url = Drupal.settings.basePath + 'inline-editor/get-ajax-form/';
   custom_settings.event = 'onload';
   custom_settings.keypress = false;
   custom_settings.prevent = false;
@@ -128,7 +128,7 @@
                 output['fieldType'] = $(that).attr('cke-data-field-type');
 
                 $.ajax({
-                  url: 'save-cke-inline-data',
+                  url: Drupal.settings.basePath + 'save-cke-inline-data',
                   dataType: 'json',
                   type: "POST",
                   async: true,
