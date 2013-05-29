@@ -1,0 +1,17 @@
+#field-edit-container {
+  background: #FFF;
+}
+
+.custom-edit-cancel {
+  background: #EEE;
+  width: 70px;
+  text-align: center;
+  padding: 2px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.custom-editable.click-disabled {
+  cursor: url('not-allowed.gif'), 'wait';
+}
+

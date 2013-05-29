@@ -1,0 +1,7 @@
+name = Inline Editor
+description = Provides a custom way to edit field inline.
+core = 7.x
+package = Cylex modules
+scripts[] = inline_editor.js
+stylesheets[all][] = inline_editor.css
+;dependencies[] =
