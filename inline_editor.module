@@ -41,7 +41,7 @@ function inline_editor_save_inline_data() {
 
     switch ($data['fieldType']) {
       case 'text_with_summary':
-        $value = array('value' => strip_tags($data['data']));
+        $value = array('value' => $data['data'], 'format' => 'full_html');
         break;
 
       default :
@@ -53,10 +53,10 @@ function inline_editor_save_inline_data() {
     $wrapper->{$data['fieldName']}->set($value);
     $wrapper->save();
     $entity = reset(entity_load($data['entityType'], array($data['id'])));
-    drupal_json_output($entity);
+    drupal_json_output($value);
     return ;
   }
-  drupal_json_output(false);
+  drupal_json_output($data);
 }
 
 function inline_editor_get_ajax_form($type, $field_name, $entity_type, $id) {
@@ -215,6 +215,50 @@ function inline_editor_field_widget_properties_alter(&$widget, $context) {
 
 }
 
+/**
+ * Implements hook_field_attach_view_alter().
+ *
+ * Show titles of empty fields.
+ */
+function inline_editor_field_attach_view_alter(&$output, $context) {
+  // We proceed only on nodes.
+  if ($context['entity_type'] != 'node' || $context['view_mode'] != 'full') {
+    return;
+  }
+
+  $node = $context['entity'];
+  // Load all instances of the fields for the node.
+  $instances = _field_invoke_get_instances('node', $node->type, array('default' => TRUE, 'deleted' => FALSE));
+
+  foreach ($instances as $field_name => $instance) {
+    // Set content for fields they are empty.
+    if (empty($node->{$field_name})) {
+      $display = field_get_display($instance, 'full', $node);
+      // Do not add field that is hidden in current display.
+      if ($display['type'] == 'hidden') {
+        continue;
+      }
+      // Load field settings.
+      $field = field_info_field($field_name);
+      // Set output for field.
+      $output[$field_name] = array(
+        '#theme' => 'field',
+        '#title' => $instance['label'],
+        '#label_display' => 'above',
+        '#field_type' => $field['type'],
+        '#field_name' => $field_name,
+        '#bundle' => $node->type,
+        '#object' => $node,
+        '#items' => array(),
+        '#entity_type' => 'node',
+        '#weight' => $display['weight'],
+        '#formatter' => '',
+        // 0 => array('#markup' => '&nbsp;'),
+      );
+    }
+  }
+}
+
 function inline_editor_get_form_validate($form, &$form_state) {
   // $entity_type = $form_state['values']['entity_type'];
   // $entity = $form_state[$entity_type];
@@ -286,7 +330,7 @@ function inline_editor_form_ajax($form, &$form_state) {
 
 function inline_editor_preprocess_node(&$vars) {
   if (drupal_is_front_page()) {
-    // return false;
+    return false;
   }
   drupal_add_js(
     array(
@@ -299,8 +343,11 @@ function inline_editor_preprocess_node(&$vars) {
 
 function inline_editor_entity_view_alter(&$build, $type){
   if (drupal_is_front_page()) {
-    // return false;
+    return false;
   }
+
+  $cke_exists = module_exists('ckeditor');
+
   $cke_types = array('text_with_summary', 'text', 'text_long');
   if ($type == 'node') {
     $entity_type = $build['#entity_type'];
@@ -313,12 +360,16 @@ function inline_editor_entity_view_alter(&$build, $type){
       // dpm($field_info);
       if (in_array($field_info['type'], $cke_types) && $field_info['cardinality'] == 1) {
         // dpm($field_info);
-        $cke_fields[$field] = $field_info['type'];
+        $cke_fields[$field] = array(
+          'field' => $field_info['type'],
+          'text_processing' => $value['settings']['text_processing'],
+        );
       }
     }
     drupal_add_js(
       array(
         'ckeFields' => $cke_fields,
+        'ckeditorExists' => $cke_exists,
       ), 'setting'
     );
   }
