@@ -1,14 +1,14 @@
-
 (function($){
 
   Drupal.ajax.prototype.commands.removeClickDisableClass = function(ajax, response, status) {
     $('.custom-editable').removeClass('click-disabled');
-    $('.inline-edit-button').fadeIn(500);
+    $('.inline-edit-button').fadeIn(100);
   }
 
   Drupal.ajax.prototype.getForm = function(fieldName, entityType, id) {
     var ajax = this;
     ajax.options.url = Drupal.settings.basePath + 'inline-editor/get-ajax-form/' + fieldName + '/' + entityType + '/' + id;
+
     // Do not perform another ajax command if one is already in progress.
     if (ajax.ajaxing) {
       return false;
@@ -16,7 +16,6 @@
 
     try {
       $.ajax(ajax.options);
-      // $('.field-name-' + fieldName.replace('_', '-')).hide(500,function(){$(this).remove();});
     }
     catch (err) {
       alert('An error occurred while attempting to process ' + ajax.options.url);
@@ -25,20 +24,7 @@
 
     $('#edit-submit').removeClass('ajax-processed');
 
-    // return false;
   };
-
-
-  /**
-   * Define a custom ajax action not associated with an element.
-   */
-  var custom_settings = {};
-  custom_settings.url = Drupal.settings.basePath + 'inline-editor/get-ajax-form/';
-  custom_settings.event = 'onload';
-  custom_settings.keypress = false;
-  custom_settings.prevent = false;
-  custom_settings.effect = 'fade';
-  Drupal.ajax['custom_ajax_action'] = new Drupal.ajax('custom_ajax_action', $(document.body), custom_settings);
 
   Drupal.behaviors.inline_editor = {
     attach: function (context, settings) {
@@ -60,12 +46,19 @@
           });
 
           if ($(this).closest('.field-collection-container').length) {
-
             // For field collection add a single class
             $(this).closest('.field-collection-container').addClass('custom-editable ' + fieldName);
           }
           else if (!$(this).find('.field-items').hasClass('inline-editor-cke')) {
+
+            if (!$(this).hasClass('custom-editable')) {
+              var target = $('.inline-edit-button.active').attr('target-element');
+              $(this).addClass(target);
+              $('.inline-edit-button').removeClass('active');
+            }
+
             $(this).addClass('custom-editable');
+
           }
 
         });
@@ -73,7 +66,17 @@
     }
   };
 
+
   $(document).ready(function() {
+
+    // Define a custom ajax action not associated with an element.
+    var custom_settings = {};
+    custom_settings.url = Drupal.settings.basePath + 'inline-editor/get-ajax-form/';
+    custom_settings.event = 'onload';
+    custom_settings.keypress = false;
+    custom_settings.prevent = false;
+    custom_settings.effect = 'fade';
+    Drupal.ajax['custom_ajax_action'] = new Drupal.ajax('custom_ajax_action', $(document.body), custom_settings);
 
     var editButton = '<div class="inline-edit-button">Edit</div>',
         inlineTargetElement = 1;
@@ -114,56 +117,30 @@
       }
     }
 
-    $("body").delegate(".inline-edit-button", "click", function(){
-      var targetElem = $(this).attr('target-element');
-      $('.' + targetElem).click().focus();
-      $('.inline-edit-button').fadeOut(500);
-    });
+    $('.inline-editor-cke').each(function(index) {
 
-    $("body").delegate(".form-autocomplete", "keydown", function(e) {
-      if (e.which == 13 && $('#autocomplete').length > 0) {
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      }
-    });
-
-    // Add edit button
-    $('.custom-editable').each(function(){
       inlineTargetElement++;
-      $(this).addClass('inline-target-' + inlineTargetElement)
-             .before($(editButton).attr('target-element', 'inline-target-' + inlineTargetElement));
-    });
-
-    $('.inline-editor-cke').each(function( index ) {
 
       // Add edit button
-      inlineTargetElement++;
       $(this).addClass('inline-target-' + inlineTargetElement)
              .parent('.field').before($(editButton).attr('target-element', 'inline-target-' + inlineTargetElement));
 
       if (typeof CKEDITOR != 'undefined') {
         var content_id = $(this).attr('id'),
-            tpl = $(this).attr('tpl'),
-            // nu le mai vreau
-            innerHTML = $(document.getElementById(content_id).innerHTML).html() ?
-                          $(document.getElementById(content_id).innerHTML).html() :
-                          document.getElementById(content_id).innerHTML,
+            $content_id = $('#' + content_id),
+            innerHTML = $($content_id.html()).html() ?
+                          $($content_id.html()).html() :
+                          $content_id.html(),
             prevValue = innerHTML.trim();
 
-            console.log($('#' + content_id).html());
-
-        //console.log($(this)..html());
-        // console.log($(this).html($($(this).html())));
-        //$.data()
         $(this).attr('cke-data-prev-value', prevValue);
 
         textProcessing = $(this).attr('cke-data-text-preocessing');
 
-        CKEDITOR.inline( content_id, {
+        CKEDITOR.inline(content_id, {
           on: {
-            blur: function( event ) {
-              $('.inline-edit-button').fadeIn(500);
+            blur: function(event) {
+              $('.inline-edit-button').fadeIn(100).removeClass('active');
               var output = {},
                   fieldElement = $('#' + content_id),
                   textProcessing = fieldElement.attr('cke-data-text-preocessing') == 1 ? true : false;
@@ -174,8 +151,8 @@
               if (!textProcessing) {
 
                 // Get only text without tags
-                output['data'] = strip_tags(output['data']);
-                prevValue = strip_tags(prevValue);
+                output['data'] = stripTags(output['data']);
+                prevValue = stripTags(prevValue);
 
               }
 
@@ -205,7 +182,7 @@
 
             },
             focus : function(event) {
-              $('.inline-edit-button').fadeOut(500);
+              $('.inline-edit-button').fadeOut(100);
             }
           },
 
@@ -233,24 +210,37 @@
         });
       }
     });
-/*
-    var instance = CKEDITOR.instances['page-title'];
 
-    console.log(CKEDITOR.instances);
+    $("body").delegate(".inline-edit-button", "click", function(){
 
-    if(instance)
-    {
-        CKEDITOR.remove(instance);
-    }
+      var targetElem = '.' + $(this).attr('target-element');
 
-    CKEDITOR.replace('page-title', {
-      toolbar : 'Cms'
-    });*/
+      if ($(targetElem).hasClass('custom-editable')) {
+        inlineEditorLoadForm($(targetElem));
+      }
+      else {
+        $(targetElem).focus();
+      }
 
-    var entityType = typeof Drupal.settings.entityType != 'undefined' ? Drupal.settings.entityType : '',
-        id = typeof Drupal.settings.id != 'undefined' ? Drupal.settings.id : '',
-        $content = $('#content').find('.content').find('.field'),
-        nid;
+      $('.inline-edit-button').fadeOut(100);
+      $(this).addClass('active');
+
+    });
+
+    $("body").delegate(".form-autocomplete", "keydown", function(e) {
+      if (e.which == 13 && $('#autocomplete').length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    });
+
+    // Add edit button
+    $('.custom-editable').each(function(){
+      inlineTargetElement++;
+      $(this).addClass('inline-target-' + inlineTargetElement)
+             .before($(editButton).attr('target-element', 'inline-target-' + inlineTargetElement));
+    });
 
 /*    $.each($content, function(k,v){
       // console.log(this);
@@ -269,64 +259,7 @@
       // $(this).addClass('custom-editable-' + fieldName);
     });*/
 
-    $('.custom-editable').live('click', function(){
 
-      if ($('.custom-edit-in-use').length) {
-        return false;
-      }
-
-      $('.inline-edit-button').fadeOut(500);
-
-      var fieldName,
-          classes = $(this).attr('class').split(' '),
-          thisClicked = this;
-
-      $.each(classes, function(key, classValue) {
-        // Search for field name.
-        if (classValue.indexOf('field-name-') > -1) {
-          // Get field name.
-          fieldName = classValue.replace('field-name-', '').replace(/-/g, '_');
-          return false;
-        }
-      });
-
-
-      var html_container = thisClicked.outerHTML;
-
-      $(thisClicked).removeClass('custom-editable')
-                    .addClass('parent custom-edit-in-use current-edit custom-editable-' + fieldName)
-                    .attr('data', html_container);
-
-      $('.custom-editable').addClass('click-disabled');
-
-      Drupal.ajax['custom_ajax_action'].getForm(fieldName, entityType, id);
-
-      return false;
-
-/*     if (fieldName) {
-       $.ajax({
-         type: "POST",
-         url: 'get-form',
-         dataType: 'text',
-         data: {'field_name' : fieldName, 'id' : id, 'type' : entityType},
-         success: function (data) {
-
-
-           Drupal.attachBehaviors($('#field-edit-container').find('.form-item'));
-
-           // Drupal.attachBehaviors($(thisClicked).find('.custom-edit-save'));
-
-           // console.log($element);
-           // console.log($.data($element, 'value'));
-           // $(thisClicked).hide();
-         },
-         error: function(error) {
-           console.log(error);
-         }
-       });
-       // console.log(fieldName);
-     }*/
-    });
 
     $('body').delegate('.custom-edit-cancel','click' , function(){
 
@@ -335,39 +268,63 @@
 
       $($parent).replaceWith(data);
       $('.custom-editable').removeClass('click-disabled');
-      $('.inline-edit-button').fadeIn(500);
+      $('.inline-edit-button').fadeIn(100).removeClass('active');
 
     });
 
-   /* $('body').delegate('.custom-edit-save', 'click', function(e){
-      e.preventDefault();
+  });
 
-      var $fields = $('#content').find('.content').find('.field');
+  function stripTags (input, allowed) {
+    // making sure the allowed arg is a string containing only tags in lowercase (<a><b><c>)
+    allowed = (((allowed || "") + "").toLowerCase().match(/<[a-z][a-z0-9]*>/g) || []).join('');
+    var tags = /<\/?([a-z][a-z0-9]*)\b[^>]*>/gi,
+      commentsAndPhpTags = /<!--[\s\S]*?-->|<\?(?:php)?[\s\S]*?\?>/gi;
+    return input.replace(commentsAndPhpTags, '').replace(tags, function ($0, $1) {
+      return allowed.indexOf('<' + $1.toLowerCase() + '>') > -1 ? $0 : '';
+    });
+  }
 
-      $.each($fields, function(k,v){
-        console.log('da');
-        $(this).addClass('custom-editable');
-      });
-      console.log('da');
-      $('#custom-edit-get-form').submit();
+  function inlineEditorLoadForm(field) {
+    var entityType = typeof Drupal.settings.entityType != 'undefined' ? Drupal.settings.entityType : '',
+      id = typeof Drupal.settings.id != 'undefined' ? Drupal.settings.id : '';
+
+
+    if ($('.custom-edit-in-use').length) {
       return false;
-    });*/
-    // Aloha.jQuery('.custom-editable').aloha();
-    // console.log('da');
-  });
+    }
 
-  // $(window).load(function(){
-  //     var $ = Aloha.jQuery;
-  //     $('.custom-edit').aloha();
-  // });
+    $('.inline-edit-button').fadeOut(100);
 
-function strip_tags (input, allowed) {
-  allowed = (((allowed || "") + "").toLowerCase().match(/<[a-z][a-z0-9]*>/g) || []).join(''); // making sure the allowed arg is a string containing only tags in lowercase (<a><b><c>)
-  var tags = /<\/?([a-z][a-z0-9]*)\b[^>]*>/gi,
-    commentsAndPhpTags = /<!--[\s\S]*?-->|<\?(?:php)?[\s\S]*?\?>/gi;
-  return input.replace(commentsAndPhpTags, '').replace(tags, function ($0, $1) {
-    return allowed.indexOf('<' + $1.toLowerCase() + '>') > -1 ? $0 : '';
+    var fieldName,
+        classes = $(field).attr('class').split(' '),
+        thisClicked = field;
+
+    $.each(classes, function(key, classValue) {
+      // Search for field name.
+      if (classValue.indexOf('field-name-') > -1) {
+        // Get field name.
+        fieldName = classValue.replace('field-name-', '').replace(/-/g, '_');
+        return false;
+      }
+    });
+
+
+    var html_container = thisClicked[0].outerHTML;
+
+    $(thisClicked).removeClass('custom-editable')
+                  .addClass('parent custom-edit-in-use current-edit custom-editable-' + fieldName)
+                  .attr('data', html_container);
+
+    $('.custom-editable').addClass('click-disabled');
+
+    Drupal.ajax['custom_ajax_action'].getForm(fieldName, entityType, id);
+
+    return false;
+
+  }
+
+  $(window).load(function() {
+
   });
-}
 
 })(jQuery);
