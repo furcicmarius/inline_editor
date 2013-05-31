@@ -1,0 +1,365 @@
+<?php
+/**
+ * Implements hook_menu().
+ */
+function inline_editor_menu() {
+
+  $items['test'] = array(
+    'title' => '',
+    'page callback' => 'inline_editor_test',
+    'access arguments' => array(TRUE),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['get-form'] = array(
+    'title' => '',
+    'page callback' => 'inline_editor_test',
+    'access arguments' => array(TRUE),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['inline-editor/get-ajax-form'] = array(
+    'page callback' => 'inline_editor_get_ajax_form',
+    'page arguments' => array(1),
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['save-cke-inline-data'] = array(
+    'page callback' => 'inline_editor_save_inline_data',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+
+}
+
+/**
+ * Save data for inline edit.
+ * @return boolean
+ */
+function inline_editor_save_inline_data() {
+
+  $data = isset($_POST['data']) ? $_POST['data'] : FALSE;
+
+  if ($data) {
+
+    switch ($data['fieldType']) {
+      case 'text_with_summary':
+        $value = array('value' => $data['data'], 'format' => 'full_html');
+        break;
+
+      default:
+        $value = strip_tags($data['data']);
+    }
+
+    $entity = reset(entity_load($data['entityType'], array($data['id'])));
+    $wrapper = entity_metadata_wrapper($data['entityType'], $entity);
+    $wrapper->{$data['fieldName']}->set($value);
+    $wrapper->save();
+    $entity = reset(entity_load($data['entityType'], array($data['id'])));
+
+    drupal_json_output(TRUE);
+    return;
+  }
+
+  drupal_json_output(FALSE);
+
+}
+
+/**
+ * Retrieve edit form for specific field name
+ * @param  string $type
+ * @param  string $field_name
+ * @param  string $entity_type
+ * @param  int $id
+ * @return array
+ */
+function inline_editor_get_ajax_form($type, $field_name, $entity_type, $id) {
+
+  $entities = entity_load($entity_type, array($id));
+  $entity = $entities[$id];
+
+  $form = drupal_render(drupal_get_form('inline_editor_get_form', $entity, $field_name, $entity_type));
+
+  $commands = array();
+  $commands[] = ajax_command_html('.custom-editable-' . $field_name, $form);
+
+  $page = array('#type' => 'ajax', '#commands' => $commands);
+  ajax_deliver($page);
+
+}
+
+/**
+ * Added required library
+ * @param  array $variables
+ * @param  array $hook
+ * @return none
+ */
+function inline_editor_process(&$variables, $hook) {
+  // Required for the loaded form to be ajaxy.
+  drupal_add_library('system', 'drupal.ajax');
+  drupal_add_library('system', 'jquery.form');
+  drupal_add_js("misc/autocomplete.js");
+
+}
+
+/**
+ * Creates form and attaches the field given in field_name
+ * @param  array $form
+ * @param  array $form_state
+ * @param  object $entity
+ * @param  string $field_name
+ * @param  string $type
+ * @return array
+ */
+function inline_editor_get_form($form, &$form_state, $entity, $field_name, $type) {
+
+  $langcode = $entity->language;
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+    '#attributes' => array('class' => array('custom-edit-save', 'use-ajax')),
+    '#ajax' => array(
+      'callback' => 'inline_editor_form_ajax',
+      'event' => 'click',
+    ),
+    '#weight' => 50,
+  );
+
+  $form['entity_id'] = array(
+    '#type' => 'hidden',
+    '#default_value' => $entity->nid,
+  );
+
+  $form['field_name'] = array(
+    '#type' => 'hidden',
+    '#default_value' => $field_name,
+  );
+
+  $form['entity_type'] = array(
+    '#type' => 'hidden',
+    '#default_value' => $type,
+  );
+
+  $form['cancel'] = array(
+    '#markup' => t('Cancel'),
+    '#prefix' => '<div class="custom-edit-cancel">',
+    '#suffix' => '</div>',
+    '#weight' => 51,
+  );
+
+  $options = array(
+    'field_name' => $field_name,
+    'language' => $langcode,
+    'default' => TRUE,
+  );
+
+  $form['#action'] = "";
+
+  field_attach_form($type, $entity, $form, $form_state, $langcode, $options);
+
+  return $form;
+}
+
+/**
+ * Implements hook_form_alter().
+ *
+ * Attaches a function for removing body format.
+ */
+function inline_editor_form_alter(&$form, &$form_state, $form_id) {
+  $form['#after_build'][] = 'inline_editor_remove_body_format';
+}
+
+/**
+ * Remove format of a field body.
+ * @param  array $form
+ * @return array
+ */
+function inline_editor_remove_body_format($form) {
+
+  if (isset($form['body'][LANGUAGE_NONE][0]['format'])) {
+    unset($form['body'][LANGUAGE_NONE][0]['format']);
+  }
+
+  return $form;
+
+}
+
+/**
+ * Implements hook_field_widget_properties_alter().
+ *
+ * Adjust textarea rows.
+ */
+function inline_editor_field_widget_properties_alter(&$widget, $context) {
+
+  if ($context['field']['type'] == 'text_with_summary') {
+
+    $widget['type'] = 'text_textarea';
+    $field_name = $context['field']['field_name'];
+
+    if (isset($context['entity']->{$field_name}['und'][0]['value'])) {
+      $lines = count(explode("\n", $context['entity']->{$field_name}['und'][0]['value']));
+      $widget['settings']['rows'] = $lines + 1;
+    }
+
+  }
+
+}
+
+/**
+ * Implements hook_field_attach_view_alter().
+ *
+ * Show titles of empty fields.
+ */
+function inline_editor_field_attach_view_alter(&$output, $context) {
+  // We proceed only on nodes.
+  if ($context['entity_type'] != 'node' || $context['view_mode'] != 'full') {
+    return;
+  }
+
+  $node = $context['entity'];
+
+  // Load all instances of the fields for the node.
+  $instances = _field_invoke_get_instances('node', $node->type, array('default' => TRUE, 'deleted' => FALSE));
+
+  foreach ($instances as $field_name => $instance) {
+
+    // Set content for fields they are empty.
+    if (empty($node->{$field_name})) {
+      $display = field_get_display($instance, 'full', $node);
+
+      // Do not add field that is hidden in current display.
+      if ($display['type'] == 'hidden') {
+        continue;
+      }
+
+      // Load field settings.
+      $field = field_info_field($field_name);
+
+      // Set output for field.
+      $output[$field_name] = array(
+        '#theme' => 'field',
+        '#title' => $instance['label'],
+        '#label_display' => 'above',
+        '#field_type' => $field['type'],
+        '#field_name' => $field_name,
+        '#bundle' => $node->type,
+        '#object' => $node,
+        '#items' => array(),
+        '#entity_type' => 'node',
+        '#weight' => $display['weight'],
+        '#formatter' => '',
+        // 0 => array('#markup' => '&nbsp;'),
+      );
+    }
+  }
+}
+
+/**
+ * Validates and saves the form submitted via ajax
+ * @param  array $form
+ * @param  array $form_state
+ * @return array
+ */
+function inline_editor_form_ajax($form, &$form_state) {
+
+  $entity_type = $form_state['values']['entity_type'];
+  $entity_id = $form_state['values']['entity_id'];
+
+  $entity = clone reset(entity_load($entity_type, array($entity_id)));
+  $field_name = $form_state['values']['field_name'];
+
+  if(!form_get_errors()){
+    field_attach_submit($entity_type, $entity, $form, $form_state, array('field_name' =>  $field_name) );
+    entity_save($entity_type, $entity);
+
+    $entity = reset(entity_load($entity_type, array($entity_id)));
+    $field = field_view_field($entity_type, $entity, $field_name, 'full');
+
+    // $field = field_view_field($entity_type, $entity, $field_name, array('settings' => array('image_style' => 'thumbnail')));
+    // $image = field_get_items($entity_type, $entity, $field_name);
+    // dpm(field_attach_view($entity_type, $entity, 'full'));
+    // $field = field_view_value($entity_type, $entity, $field_name, $image[0], array(
+    //   'type' => 'image',
+    //   'settings' => array(
+    //     'image_style' => 'large',
+    //     // 'image_link' => 'content',
+    //   ),
+    // ));
+    $commands[] = array('command' => 'removeClickDisableClass');
+    $commands[] = ajax_command_replace('.custom-editable-' . $field_name, drupal_render($field));
+
+    return array('#type' => 'ajax', '#commands' => $commands);
+
+  }
+  else {
+
+    $commands = array();
+    $commands[] = ajax_command_html('.custom-editable-' . $field_name, d);
+    $commands[] = ajax_command_append('.custom-editable-' . $field_name, theme('status_messages') . drupal_render($form));
+
+    return array('#type' => 'ajax', '#commands' => $commands);
+
+  }
+}
+
+/**
+ * Implements hook_preprocess_node().
+ */
+function inline_editor_preprocess_node(&$vars) {
+  if (drupal_is_front_page()) {
+    return FALSE;
+  }
+  drupal_add_js(
+    array(
+      'entityType' => $vars['elements']['#entity_type'],
+      'id' => $vars['nid']
+    ), 'setting'
+  );
+
+}
+
+/**
+ * Implements hook_entity_view_alter().
+ */
+function inline_editor_entity_view_alter(&$build, $type){
+
+  if (drupal_is_front_page()) {
+    return FALSE;
+  }
+
+  $cke_exists = module_exists('ckeditor');
+  $cke_types = array('text_with_summary', 'text', 'text_long');
+
+  if ($type == 'node') {
+
+    $entity_type = $build['#entity_type'];
+    $bundle = $build['#bundle'];
+    $fields = field_info_instances($entity_type, $bundle);
+
+    foreach ($fields as $field => $value) {
+
+      $field_info = field_info_field($field);
+
+      if (in_array($field_info['type'], $cke_types) && $field_info['cardinality'] == 1) {
+
+        $cke_fields[$field] = array(
+          'field' => $field_info['type'],
+          'text_processing' => $value['settings']['text_processing'],
+        );
+
+      }
+    }
+
+    drupal_add_js(
+      array(
+        'ckeFields' => $cke_fields,
+        'ckeditorExists' => $cke_exists,
+      ), 'setting'
+    );
+
+  }
+}
