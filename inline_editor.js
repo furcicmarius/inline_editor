@@ -1,6 +1,5 @@
 (function($){
 
-  //
   Drupal.ajax.prototype.commands.removeClickDisableClass = function(ajax, response, status) {
     $('.custom-editable').removeClass('click-disabled');
     $('.inline-edit-button').fadeIn(100);
