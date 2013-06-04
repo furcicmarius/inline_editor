@@ -1,5 +1,6 @@
 (function($){
 
+  //
   Drupal.ajax.prototype.commands.removeClickDisableClass = function(ajax, response, status) {
     $('.custom-editable').removeClass('click-disabled');
     $('.inline-edit-button').fadeIn(100);
@@ -29,7 +30,7 @@
   Drupal.behaviors.inline_editor = {
     attach: function (context, settings) {
 
-      var $fields = $('#content').find('.content').find('.field');
+      var $fields = $('.content').find('.field');
 
       if (!$fields.hasClass('current-edit') && typeof Drupal.settings.id != 'undefined') {
 
@@ -50,14 +51,12 @@
             $(this).closest('.field-collection-container').addClass('custom-editable ' + fieldName);
           }
           else if (!$(this).find('.field-items').hasClass('inline-editor-cke')) {
-
             if (!$(this).hasClass('custom-editable')) {
               var target = $('.inline-edit-button.active').attr('target-element');
               $(this).addClass(target);
               $('.inline-edit-button').removeClass('active');
             }
             $(this).addClass('custom-editable');
-
           }
 
         });
@@ -98,6 +97,7 @@
                                           'cke-data-text-preocessing' : type.text_processing
                                         }).parent().removeClass('custom-editable');
         });
+
         // Make title editable
         if($('#page-title').length) {
           $('#page-title').addClass('inline-editor-cke')
@@ -251,24 +251,6 @@
              .before($(editButton).attr('target-element', 'inline-target-' + inlineTargetElement));
     });
 
-/*    $.each($content, function(k,v){
-      // console.log(this);
-
-      var classes = $(this).attr('class').split(' ');
-
-      $.each(classes, function(key, classValue) {
-        // Search for field name.
-        if (classValue.indexOf('field-name-') > -1) {
-          // Get field name.
-          fieldName = classValue.replace('field-name-', '').replace('-', '_');
-          return false;
-        }
-      });
-
-      // $(this).addClass('custom-editable-' + fieldName);
-    });*/
-
-
 
     $('body').delegate('.custom-edit-cancel','click' , function(){
 
@@ -331,9 +313,5 @@
     return false;
 
   }
-
-  $(window).load(function() {
-
-  });
 
 })(jQuery);
