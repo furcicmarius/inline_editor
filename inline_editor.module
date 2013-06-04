@@ -81,7 +81,8 @@ function inline_editor_get_ajax_form($type, $field_name, $entity_type, $id) {
   $entities = entity_load($entity_type, array($id));
   $entity = $entities[$id];
 
-  $form = drupal_render(drupal_get_form('inline_editor_get_form', $entity, $field_name, $entity_type));
+  $form = drupal_get_form('inline_editor_get_form', $entity, $field_name, $entity_type);
+  $form = drupal_render($form);
 
   $commands = array();
   $commands[] = ajax_command_html('.custom-editable-' . $field_name, $form);
@@ -268,14 +269,17 @@ function inline_editor_form_ajax($form, &$form_state) {
   $entity_type = $form_state['values']['entity_type'];
   $entity_id = $form_state['values']['entity_id'];
 
-  $entity = clone reset(entity_load($entity_type, array($entity_id)));
+  $entity = entity_load($entity_type, array($entity_id));
+  $entity = reset($entity);
+
   $field_name = $form_state['values']['field_name'];
 
   if(!form_get_errors()){
     field_attach_submit($entity_type, $entity, $form, $form_state, array('field_name' =>  $field_name) );
     entity_save($entity_type, $entity);
 
-    $entity = reset(entity_load($entity_type, array($entity_id)));
+    $entity = entity_load($entity_type, array($entity_id));
+    $entity = reset($entity);
     $field = field_view_field($entity_type, $entity, $field_name);
 
     $commands[] = array('command' => 'removeClickDisableClass');
