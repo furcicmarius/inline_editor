@@ -31,6 +31,12 @@ function inline_editor_menu() {
     'type' => MENU_CALLBACK,
   );
 
+  $items['save-form-data'] = array(
+    'page callback' => 'inline_editor_form_ajax',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+
   return $items;
 
 }
@@ -118,10 +124,12 @@ function inline_editor_get_form($form, &$form_state, $entity, $field_name, $type
 
   $langcode = $entity->language;
 
+  list($id,) = entity_extract_ids($type, $entity);
+
   $form['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Save'),
-    '#attributes' => array('class' => array('custom-edit-save', 'use-ajax')),
+    '#attributes' => array('class' => array('custom-edit-save', 'use-ajax'), 'href' => '?q=system/ajax'),
     '#ajax' => array(
       'callback' => 'inline_editor_form_ajax',
       'event' => 'click',
@@ -131,7 +139,7 @@ function inline_editor_get_form($form, &$form_state, $entity, $field_name, $type
 
   $form['entity_id'] = array(
     '#type' => 'hidden',
-    '#default_value' => $entity->nid,
+    '#default_value' => $id,
   );
 
   $form['field_name'] = array(
@@ -207,6 +215,10 @@ function inline_editor_field_widget_properties_alter(&$widget, $context) {
 
   }
 
+}
+
+function inline_editor_preprocess_field(&$variables) {
+  // dpm($variables);
 }
 
 /**
